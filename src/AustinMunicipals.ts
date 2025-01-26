@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import * as definitions from "./definitions";
+import * as timeUtils from "./utils/TimeUtils";
 
 export const url =
   "https://txaustinweb.myvscloud.com/webtrac/web/search.html?display=detail&module=GR&secondarycode=2";
@@ -79,4 +80,53 @@ export const selectNumberOfPlayers = async (
 
 export const selectSearch = async (page: Page) => {
   await page.locator("#grwebsearch_buttonsearch").click();
+};
+
+export const selectTime = async (
+  page: Page,
+  startTime: string,
+  endTime: string
+) => {
+  await page.waitForSelector("#grwebsearch_output_table", { visible: true });
+
+  const startTimeInMinutes = timeUtils.convert12HourToMinutes(startTime);
+  const endTimeInMinutes = timeUtils.convert12HourToMinutes(endTime);
+
+  const availableTimes = await page.$$eval(
+    "#grwebsearch_output_table > tbody tr",
+    (rows) => {
+      return rows.map((row) => {
+        const cells = row.querySelectorAll("td");
+        const timeCell = cells.item(2);
+        return timeCell.innerText;
+      });
+    }
+  );
+
+  type time = string;
+  type rowIndex = number;
+  const acceptableTimesMap = new Map<rowIndex, time>();
+
+  availableTimes.forEach((time, index) => {
+    const timeInMinutes = timeUtils.convert12HourToMinutes(time);
+    if (
+      timeInMinutes >= startTimeInMinutes &&
+      timeInMinutes <= endTimeInMinutes
+    ) {
+      acceptableTimesMap.set(index, time);
+      console.log(`Added ${time} to acceptable times list.`);
+    }
+  });
+
+  for (const [key, value] of acceptableTimesMap.entries()) {
+    page
+      .locator(
+        `#grwebsearch_output_table > tbody tr:nth-child(${
+          key + 1
+        }) > td.button-cell.button-cell--cart > a`
+      )
+      .click();
+    console.log(`${value} selected.`);
+    break;
+  }
 };
